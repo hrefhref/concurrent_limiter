@@ -1,0 +1,86 @@
+
+
+
+
+multi, sequential
+
+
+
+
+Operating System: Linux
+CPU Information: AMD EPYC 7401P 24-Core Processor
+Number of Available Cores: 8
+Available memory: 31.41 GB
+Elixir 1.10.3
+Erlang 22.3.2
+
+Benchmark suite executing with the following configuration:
+warmup: 2 s
+time: 5 s
+memory time: 0 ns
+parallel: 1
+inputs: none specified
+Estimated total run time: 35 s
+
+Benchmarking Limiter.limit/2 unique ets...
+Benchmarking Limiter.limit/2 unique ets, concurrency...
+Benchmarking Limiter:limit/2 atomics...
+Benchmarking Limiter:limit/2 shared ets...
+Benchmarking Limiter:limit/2 shared ets, concurrency...
+
+Name                                              ips        average  deviation         median         99th %
+Limiter:limit/2 atomics                      491.88 K        2.03 μs  ±1506.30%        1.55 μs        3.48 μs
+Limiter.limit/2 unique ets                   414.63 K        2.41 μs  ±1169.34%        1.97 μs        4.53 μs
+Limiter:limit/2 shared ets                   411.43 K        2.43 μs  ±1286.95%        1.96 μs        3.66 μs
+Limiter.limit/2 unique ets, concurrency      406.50 K        2.46 μs  ±1006.31%        2.06 μs        4.34 μs
+Limiter:limit/2 shared ets, concurrency      384.04 K        2.60 μs  ±1293.25%        2.12 μs        4.37 μs
+
+Comparison: 
+Limiter:limit/2 atomics                      491.88 K
+Limiter.limit/2 unique ets                   414.63 K - 1.19x slower +0.38 μs
+Limiter:limit/2 shared ets                   411.43 K - 1.20x slower +0.40 μs
+Limiter.limit/2 unique ets, concurrency      406.50 K - 1.21x slower +0.43 μs
+Limiter:limit/2 shared ets, concurrency      384.04 K - 1.28x slower +0.57 μs
+
+
+
+
+multi, parallel
+
+
+
+
+Operating System: Linux
+CPU Information: AMD EPYC 7401P 24-Core Processor
+Number of Available Cores: 8
+Available memory: 31.41 GB
+Elixir 1.10.3
+Erlang 22.3.2
+
+Benchmark suite executing with the following configuration:
+warmup: 2 s
+time: 5 s
+memory time: 0 ns
+parallel: 8
+inputs: none specified
+Estimated total run time: 35 s
+
+Benchmarking Limiter.limit/2 unique ets...
+Benchmarking Limiter.limit/2 unique ets, concurrency...
+Benchmarking Limiter:limit/2 atomics...
+Benchmarking Limiter:limit/2 shared ets...
+Benchmarking Limiter:limit/2 shared ets, concurrency...
+
+Name                                              ips        average  deviation         median         99th %
+Limiter:limit/2 atomics                      307.84 K        3.25 μs  ±1113.62%        2.09 μs       10.24 μs
+Limiter.limit/2 unique ets, concurrency       95.56 K       10.46 μs   ±391.37%        2.93 μs      163.02 μs
+Limiter:limit/2 shared ets, concurrency       92.39 K       10.82 μs   ±374.36%        2.92 μs      158.97 μs
+Limiter.limit/2 unique ets                    80.68 K       12.39 μs   ±362.74%        2.85 μs      160.66 μs
+Limiter:limit/2 shared ets                     6.04 K      165.66 μs    ±17.23%      167.48 μs      237.96 μs
+
+Comparison: 
+Limiter:limit/2 atomics                      307.84 K
+Limiter.limit/2 unique ets, concurrency       95.56 K - 3.22x slower +7.22 μs
+Limiter:limit/2 shared ets, concurrency       92.39 K - 3.33x slower +7.57 μs
+Limiter.limit/2 unique ets                    80.68 K - 3.82x slower +9.15 μs
+Limiter:limit/2 shared ets                     6.04 K - 51.00x slower +162.41 μs
