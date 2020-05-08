@@ -8,8 +8,8 @@ defmodule Limiter do
 
   It supports two storage methods:
 
-  * **`[atomics](https://erlang.org/doc/man/atomics.html)`** recommended and default if your OTP is > 21.2.
-  * **`[ets](https://erlang.org/doc/man/ets.html)`** either with a single table per Limiter (faster) or a shared table (better for a large number of limiters).
+  * **[atomics](https://erlang.org/doc/man/atomics.html)** recommended and default if your OTP is > 21.2.
+  * **[ets](https://erlang.org/doc/man/ets.html)** either with a single table per Limiter (faster) or a shared table.
 
   You would however always want to use atomics, ets is mostly there for backwards compatibility.
   """
@@ -18,17 +18,15 @@ defmodule Limiter do
   Initializes a `Limiter`.
   """
 
-  @spec new(name, max_running, max_waiting, options) :: :ok | {:error, :existing}
-        when name: atom(),
-             max_running: non_neg_integer(),
-             max_waiting: non_neg_integer() | :infinity,
-             options: [option],
-             option: {:wait, non_neg_integer()} | backend,
-             backend: :atomics | ets_backend,
-             ets_backend: :ets | {:ets, atom()} | {:ets, ets_name :: atom(), ets_options :: []}
+  @spec new(name, max_running, max_waiting, options) :: :ok | {:error, :existing} when name: atom(),
+    max_running: non_neg_integer(),
+    max_waiting: non_neg_integer() | :infinity,
+    options: [option],
+    option: {:wait, non_neg_integer()} | backend,
+    backend: :atomics | ets_backend,
+    ets_backend: :ets | {:ets, atom()} | {:ets, ets_name :: atom(), ets_options :: []}
   def new(name, max_running, max_waiting, options \\ []) do
     name = atom_name(name)
-
     if defined?(name) do
       {:error, :existing}
     else
@@ -40,24 +38,18 @@ defmodule Limiter do
     end
   end
 
-  @spec set(name, new_max_running, new_max_waiting, options) :: :ok | :error
-        when name: atom(),
-             new_max_running: non_neg_integer(),
-             new_max_waiting: non_neg_integer() | :infinity,
-             options: [option],
-             option: {:wait, non_neg_integer()}
+  @spec set(name, new_max_running, new_max_waiting, options) :: :ok | :error when name: atom(),
+    new_max_running: non_neg_integer(),
+    new_max_waiting: non_neg_integer() | :infinity,
+    options: [option],
+    option: {:wait, non_neg_integer()}
   @doc "Adjust the limiter limits at runtime"
   def set(name, new_max_running, new_max_waiting, options \\ []) do
     name = atom_name(name)
-
     if defined?(name) do
       new_wait = Keyword.get(options, :wait)
       {__MODULE__, max_running, max_waiting, backend, wait} = :persistent_term.get(name)
-
-      new =
-        {__MODULE__, new_max_running || max_running, new_max_waiting || max_waiting, backend,
-         new_wait || wait}
-
+      new = {__MODULE__, new_max_running || max_running, new_max_waiting || max_waiting, backend, new_wait || wait}
       :persistent_term.put(name, new)
       :ok
     else
@@ -107,11 +99,11 @@ defmodule Limiter do
     :atomics.add_get(ref, 1, 1)
   end
 
-  def dec({:ets, ets}, name) do
+  defp dec({:ets, ets}, name) do
     :ets.update_counter(ets, name, {2, -1}, {name, 0})
   end
 
-  def dec({:atomics, ref}, _) do
+  defp dec({:atomics, ref}, _) do
     :atomics.sub_get(ref, 1, 1)
   end
 
@@ -148,11 +140,11 @@ defmodule Limiter do
       :undefined -> :ets.new(ets_name, [:public, :named_table] ++ options)
       _ -> nil
     end
-
     {:ok, {:ets, ets_name}}
   end
 
   defp setup_backend(:atomics) do
-    {:ok, {:atomics, :atomics.new(1, signed: true)}}
+    {:ok, {:atomics, :atomics.new(1, [signed: true])}}
   end
+
 end
