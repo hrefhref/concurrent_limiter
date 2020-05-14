@@ -1,16 +1,16 @@
-defmodule LimiterTest do
+defmodule ConcurrentLimiterTest do
   use ExUnit.Case
-  doctest Limiter
+  doctest ConcurrentLimiter
 
   test "limiter ets is atomic" do
     name = "test1"
-    Limiter.new(name, 2, 2)
+    ConcurrentLimiter.new(name, 2, 2)
     atomic_test(name)
   end
 
   test "limiter atomics is atomic" do
     name = "test2"
-    Limiter.new(name, 2, 2, backend: :atomics)
+    ConcurrentLimiter.new(name, 2, 2, backend: :atomics)
     atomic_test(name)
   end
 
@@ -18,7 +18,7 @@ defmodule LimiterTest do
     self = self()
 
     sleepy = fn sleep ->
-      case Limiter.limit(name, fn ->
+      case ConcurrentLimiter.limit(name, fn ->
              send(self, :ok)
              Process.sleep(sleep)
              :ok

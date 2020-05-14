@@ -1,21 +1,23 @@
-defmodule Limiter do
+defmodule ConcurrentLimiter do
   require Logger
 
   @moduledoc """
-  # Limiter
+  # Concurrent Limiter
 
   A concurrency limiter. Limits the number of concurrent invocations possible, without using a worker pool or different processes.
+
+  It can be useful in cases where you don't need a worker pool but still being able to limit concurrent calls without much overhead. As it internally uses `persistent_term` to store metadata, and can fallback to ETS tables, it is however not made for a large number of limiters and cannot be used for things like a per-user rate limiter.
 
   It supports two storage methods:
 
   * **[atomics](https://erlang.org/doc/man/atomics.html)** recommended and default if your OTP is > 21.2.
-  * **[ets](https://erlang.org/doc/man/ets.html)** either with a single table per Limiter (faster) or a shared table.
+  * **[ets](https://erlang.org/doc/man/ets.html)** either with a single table per limiter (faster) or a shared table.
 
-  You would however always want to use atomics, ets is mostly there for backwards compatibility.
+  You would almost always want to use atomics, ets is mostly there for backwards compatibility.
   """
 
   @doc """
-  Initializes a `Limiter`.
+  Initializes a `ConcurrentLimiter`.
   """
 
   @spec new(name, max_running, max_waiting, options) :: :ok | {:error, :existing} when name: atom(),
@@ -24,9 +26,9 @@ defmodule Limiter do
     options: [option],
     option: {:wait, non_neg_integer()} | backend,
     backend: :atomics | ets_backend,
-    ets_backend: :ets | {:ets, atom()} | {:ets, ets_name :: atom(), ets_options :: []}
+    ets_backend: :ets | {:ets, atom()} | {:ets, atom(), ets_options :: []}
   def new(name, max_running, max_waiting, options \\ []) do
-    name = atom_name(name)
+    name = prefix_name(name)
     if defined?(name) do
       {:error, :existing}
     else
@@ -45,7 +47,7 @@ defmodule Limiter do
     option: {:wait, non_neg_integer()}
   @doc "Adjust the limiter limits at runtime"
   def set(name, new_max_running, new_max_waiting, options \\ []) do
-    name = atom_name(name)
+    name = prefix_name(name)
     if defined?(name) do
       new_wait = Keyword.get(options, :wait)
       {__MODULE__, max_running, max_waiting, backend, wait} = :persistent_term.get(name)
@@ -60,7 +62,7 @@ defmodule Limiter do
   @spec limit(atom(), function()) :: {:error, :overload} | any()
   @doc "Limits invocation of `fun`."
   def limit(name, fun) do
-    do_limit(atom_name(name), fun)
+    do_limit(prefix_name(name), fun)
   end
 
   defp do_limit(name, fun) do
@@ -107,7 +109,7 @@ defmodule Limiter do
     :atomics.sub_get(ref, 1, 1)
   end
 
-  defp atom_name(suffix), do: Module.concat(__MODULE__, suffix)
+  defp prefix_name(suffix), do: Module.concat(__MODULE__, suffix)
 
   defp defined?(name) do
     {__MODULE__, _, _, _, _, _} = :persistent_term.get(name)
@@ -120,7 +122,7 @@ defmodule Limiter do
     if Code.ensure_loaded?(:atomics) do
       :atomics
     else
-      Logger.debug("Limiter: atomics not available, using ETS backend")
+      Logger.debug("ConcurrentLimiter: atomics not available, using ETS backend")
       :ets
     end
   end
@@ -134,7 +136,7 @@ defmodule Limiter do
   end
 
   defp setup_backend({:ets, name, options}) do
-    ets_name = atom_name(name)
+    ets_name = prefix_name(name)
 
     case :ets.whereis(ets_name) do
       :undefined -> :ets.new(ets_name, [:public, :named_table] ++ options)

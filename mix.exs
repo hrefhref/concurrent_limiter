@@ -1,9 +1,9 @@
-defmodule Limiter.MixProject do
+defmodule ConcurrentLimiter.MixProject do
   use Mix.Project
 
   def project do
     [
-      app: :limiter,
+      app: :concurrent_limiter,
       version: "0.1.0",
       elixir: "~> 1.10",
       start_permanent: Mix.env() == :prod,

@@ -1,52 +1,70 @@
 infinite = 1_000_000_000_000_000_000_000_000_000_000_000_000_000_000_000
+parallel = case Integer.parse(System.get_env("PARALLEL", "")) do
+  {int, _} -> int
+  _ -> System.schedulers_online()/2
+end
 
-Limiter.new(:bench_u_0, infinite, 0, backend: {:ets, LimiterTest0, []})
-Limiter.new(:bench_u_1, infinite, 0, backend: {:ets, LimiterTest1, []})
-Limiter.new(:bench_u_2, infinite, 0, backend: {:ets, LimiterTest2, []})
-Limiter.new(:bench_u_3, infinite, 0, backend: {:ets, LimiterTest3, []})
+multi_count = case Integer.parse(System.get_env("MULTI", "")) do
+  {int, _} -> int
+  _ -> parallel
+end
 
-Limiter.new(:bench_a_0, infinite, 0, backend: :atomics)
-Limiter.new(:bench_a_1, infinite, 0, backend: :atomics)
-Limiter.new(:bench_a_2, infinite, 0, backend: :atomics)
-Limiter.new(:bench_a_3, infinite, 0, backend: :atomics)
+names = fn(prefix) ->
+  for i <- 1..multi_count do
+    Module.concat(MultiConcurrentLimiterBenchmark, "#{prefix}#{i}")
+  end
+end
 
-Limiter.new(:bench_s_0, infinite, 0, backend: {:ets, LimiterTest, []})
-Limiter.new(:bench_s_1, infinite, 0, backend: {:ets, LimiterTest, []})
-Limiter.new(:bench_s_2, infinite, 0, backend: {:ets, LimiterTest, []})
-Limiter.new(:bench_s_3, infinite, 0, backend: {:ets, LimiterTest, []})
+
+bench_unique = for name <- names.("u") do
+  ConcurrentLimiter.new(name, infinite, 0, backend: {:ets, name, []})
+  name
+end
+
+IO.inspect(bench_unique)
+
+bench_atomics = for name <- names.("a") do
+  ConcurrentLimiter.new(name, infinite, 0, backend: :atomics)
+  name
+end
+
+bench_shared = for name <- names.("s") do
+  ConcurrentLimiter.new(name, infinite, 0, backend: {:ets, ConcurrentLimiterTest, []})
+  name
+end
 
 rw = [{:read_concurrency, true}, {:write_concurrency, true}]
 
-Limiter.new(:bench_u_rw0, infinite, 0, backend: {:ets, LimiterTestRW0, rw})
-Limiter.new(:bench_u_rw1, infinite, 0, backend: {:ets, LimiterTestRW1, rw})
-Limiter.new(:bench_u_rw2, infinite, 0, backend: {:ets, LimiterTestRW2, rw})
-Limiter.new(:bench_u_rw3, infinite, 0, backend: {:ets, LimiterTestRW3, rw})
+bench_unique_rw = for name <- names.("u_rw") do
+  ConcurrentLimiter.new(name, infinite, 0, backend: {:ets, name, rw})
+  name
+end
 
-Limiter.new(:bench_s_rw0, infinite, 0, backend: {:ets, LimiterTestRW, rw})
-Limiter.new(:bench_s_rw1, infinite, 0, backend: {:ets, LimiterTestRW, rw})
-Limiter.new(:bench_s_rw2, infinite, 0, backend: {:ets, LimiterTestRW, rw})
-Limiter.new(:bench_s_rw3, infinite, 0, backend: {:ets, LimiterTestRW, rw})
+bench_shared_rw = for name <- names.("s_rw") do
+  ConcurrentLimiter.new(name, infinite, 0, backend: {:ets, ConcurrentLimiterTestRW, rw})
+  name
+end
 
 multiple = %{
-  "Limiter.limit/2 unique ets" => fn ->
-    limiter = Enum.random([:bench_u_0, :bench_u_1, :bench_u_2, :bench_u_3])
-    Limiter.limit(limiter, fn -> :ok end)
+  "ConcurrentLimiter.limit/2 unique ets" => fn ->
+    limiter = Enum.random(bench_unique)
+    ConcurrentLimiter.limit(limiter, fn -> :ok end)
   end,
-  "Limiter:limit/2 shared ets" => fn ->
-    limiter = Enum.random([:bench_s_0, :bench_s_1, :bench_s_2, :bench_s_3])
-    Limiter.limit(limiter, fn -> :ok end)
+  "ConcurrentLimiter:limit/2 shared ets" => fn ->
+    limiter = Enum.random(bench_shared)
+    ConcurrentLimiter.limit(limiter, fn -> :ok end)
   end,
-  "Limiter.limit/2 unique ets, concurrency" => fn ->
-    limiter = Enum.random([:bench_u_rw0, :bench_u_rw1, :bench_u_rw2, :bench_u_rw3])
-    Limiter.limit(limiter, fn -> :ok end)
+  "ConcurrentLimiter.limit/2 unique ets, concurrency" => fn ->
+    limiter = Enum.random(bench_unique_rw)
+    ConcurrentLimiter.limit(limiter, fn -> :ok end)
   end,
-  "Limiter:limit/2 shared ets, concurrency" => fn ->
-    limiter = Enum.random([:bench_s_rw0, :bench_s_rw1, :bench_s_rw2, :bench_s_rw3])
-    Limiter.limit(limiter, fn -> :ok end)
+  "ConcurrentLimiter:limit/2 shared ets, concurrency" => fn ->
+    limiter = Enum.random(bench_shared_rw)
+    ConcurrentLimiter.limit(limiter, fn -> :ok end)
   end,
-  "Limiter:limit/2 atomics" => fn ->
-    limiter = Enum.random([:bench_a_0, :bench_a_1, :bench_a_2, :bench_a_3])
-    Limiter.limit(limiter, fn -> :ok end)
+  "ConcurrentLimiter:limit/2 atomics" => fn ->
+    limiter = Enum.random(bench_atomics)
+    ConcurrentLimiter.limit(limiter, fn -> :ok end)
   end
 }
 

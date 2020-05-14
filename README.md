@@ -1,3 +1,3 @@
-# Limiter
+# Concurrent Limiter
 
-See the docs in `lib/limiter.ex`.
+See the docs in `lib/concurrent_limiter.ex`.
