@@ -73,9 +73,20 @@ defmodule ConcurrentLimiter do
     end
   end
 
+  @spec delete(name) :: :ok when name: atom()
+  @doc "Deletes a limiter."
+  def delete(name) do
+    if defined?(name) do
+      :persistent_term.put(name, nil)
+    end
+
+    :ok
+  end
+
   @doc "Limits invocation of `fun`."
-  @spec limit(atom(), function(), opts) :: {:error, :overload} | any()
-        when opts: [option],
+  @spec limit(name, function(), opts) :: {:error, :overload} | any()
+        when name: atom(),
+             opts: [option],
              option: {:wait, non_neg_integer()} | {:max_retries, non_neg_integer()}
   def limit(name, fun, opts \\ []) do
     do_limit(prefix_name(name), fun, opts, 0)
