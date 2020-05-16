@@ -1,0 +1,40 @@
+image: elixir:1.9
+
+variables:
+  MIX_ENV: test
+
+cache:
+  key: ${CI_COMMIT_REF_SLUG}
+  paths:
+    - deps
+    - _build
+stages:
+  - build
+  - test
+
+before_script:
+  - mix local.hex --force
+  - mix local.rebar --force
+
+build:
+  stage: build
+  script:
+    - mix deps.get
+    - mix compile --force
+
+unit-testing:
+  stage: test
+  coverage: '/(\d+\.\d+\%) \| Total/'
+  script:
+    - mix test --trace --cover
+
+lint:
+  stage: test
+  script:
+    - mix format --check-formatted
+
+analysis:
+  stage: test
+  script:
+    - mix deps.get
+    - mix credo --strict
