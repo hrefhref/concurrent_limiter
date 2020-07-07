@@ -97,9 +97,11 @@ defmodule ConcurrentLimiter do
     max = max_running + max_waiting
     counter = inc(ref, name)
     max_retries = Keyword.get(opts, :max_retries) || max_retries
+    :telemetry.execute([:concurrent_limiter, :limit], %{counter: counter}, %{limiter: name})
 
     cond do
       counter <= max_running ->
+        :telemetry.execute([:concurrent_limiter, :execution], %{counter: counter}, %{limiter: name})
         try do
           fun.()
         after
@@ -107,13 +109,17 @@ defmodule ConcurrentLimiter do
         end
 
       counter > max ->
+        :telemetry.execute([:concurrent_limiter, :overload], %{counter: counter}, %{limiter: name, scope: "max"})
         dec(ref, name)
         {:error, :overload}
 
       retries + 1 > max_retries ->
+        :telemetry.execute([:concurrent_limiter, :max_retries], %{counter: counter}, %{limiter: name, retries: retries + 1})
+        dec(ref, name)
         {:error, :overload}
 
       counter > max_running ->
+        :telemetry.execute([:concurrent_limiter, :wait], %{counter: counter}, %{limiter: name, retries: retries + 1})
         wait(ref, name, fun, wait, opts, retries + 1)
     end
   end
