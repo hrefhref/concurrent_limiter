@@ -127,6 +127,13 @@ defmodule ConcurrentLimiter do
           scope: "max"
         })
 
+      max_waiting == 0 ->
+        :telemetry.execute([:concurrent_limiter, :overload], %{counter: counter}, %{limiter: name, scope: "max"})
+        dec(ref, name)
+        {:error, :overload}
+
+       counter > max ->
+        :telemetry.execute([:concurrent_limiter, :overload], %{counter: counter}, %{limiter: name, scope: "max"})
         dec(ref, name)
         {:error, :overload}
 
