@@ -101,25 +101,50 @@ defmodule ConcurrentLimiter do
 
     cond do
       counter <= max_running ->
-        :telemetry.execute([:concurrent_limiter, :execution], %{counter: counter}, %{limiter: name})
+        :telemetry.execute([:concurrent_limiter, :execution], %{counter: counter}, %{
+          limiter: name
+        })
+
+        Process.flag(:trap_exit, true)
+
         try do
           fun.()
         after
           dec(ref, name)
+          Process.flag(:trap_exit, false)
+
+          receive do
+            {:EXIT, _, reason} ->
+              Process.exit(self(), reason)
+          after
+            0 -> :noop
+          end
         end
 
       counter > max ->
-        :telemetry.execute([:concurrent_limiter, :overload], %{counter: counter}, %{limiter: name, scope: "max"})
+        :telemetry.execute([:concurrent_limiter, :overload], %{counter: counter}, %{
+          limiter: name,
+          scope: "max"
+        })
+
         dec(ref, name)
         {:error, :overload}
 
       retries + 1 > max_retries ->
-        :telemetry.execute([:concurrent_limiter, :max_retries], %{counter: counter}, %{limiter: name, retries: retries + 1})
+        :telemetry.execute([:concurrent_limiter, :max_retries], %{counter: counter}, %{
+          limiter: name,
+          retries: retries + 1
+        })
+
         dec(ref, name)
         {:error, :overload}
 
       counter > max_running ->
-        :telemetry.execute([:concurrent_limiter, :wait], %{counter: counter}, %{limiter: name, retries: retries + 1})
+        :telemetry.execute([:concurrent_limiter, :wait], %{counter: counter}, %{
+          limiter: name,
+          retries: retries + 1
+        })
+
         wait(ref, name, fun, wait, opts, retries + 1)
     end
   end
