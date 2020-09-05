@@ -105,19 +105,22 @@ defmodule ConcurrentLimiter do
           limiter: name
         })
 
-        Process.flag(:trap_exit, true)
+        old_value = Process.flag(:trap_exit, true)
 
         try do
           fun.()
         after
           dec(ref, name)
-          Process.flag(:trap_exit, false)
 
-          receive do
-            {:EXIT, _, reason} ->
-              Process.exit(self(), reason)
-          after
-            0 -> :noop
+          unless old_value do
+            Process.flag(:trap_exit, false)
+
+            receive do
+              {:EXIT, _, reason} ->
+                Process.exit(self(), reason)
+            after
+              0 -> :noop
+            end
           end
         end
 
