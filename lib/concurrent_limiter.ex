@@ -106,14 +106,7 @@ defmodule ConcurrentLimiter do
           limiter: name
         })
 
-        mon = sentinel_start(sentinel, ref, name)
-
-        try do
-          fun.()
-        after
-          dec(ref, name)
-          sentinel_stop(mon)
-        end
+        run(sentinel, ref, name, fun)
 
       counter > max ->
         :telemetry.execute([:concurrent_limiter, :overload], %{counter: counter}, %{
@@ -157,12 +150,7 @@ defmodule ConcurrentLimiter do
           retries: retries + 1
         })
 
-        mon = sentinel_start(sentinel, ref, name)
-        wait = Keyword.get(opts, :timeout) || wait
-        Process.sleep(wait)
-        dec(ref, name)
-        sentinel_stop(mon)
-        do_limit(name, fun, opts, retries + 1)
+        wait(sentinel, ref, name, fun, opts, wait, retries)
     end
   end
 
@@ -172,6 +160,26 @@ defmodule ConcurrentLimiter do
 
   defp dec(ref, _) do
     :atomics.sub_get(ref, 1, 1)
+  end
+
+  defp run(sentinel, ref, name, fun) do
+    mon = sentinel_start(sentinel, ref, name)
+
+    try do
+      fun.()
+    after
+      dec(ref, name)
+      sentinel_stop(mon)
+    end
+  end
+
+  defp wait(sentinel, ref, name, fun, opts, wait, retries) do
+    mon = sentinel_start(sentinel, ref, name)
+    wait = Keyword.get(opts, :timeout) || wait
+    Process.sleep(wait)
+    dec(ref, name)
+    sentinel_stop(mon)
+    do_limit(name, fun, opts, retries + 1)
   end
 
   defp prefix_name(suffix), do: Module.concat(__MODULE__, suffix)
@@ -194,14 +202,14 @@ defmodule ConcurrentLimiter do
   defp sentinel_start(_, _, _), do: nil
 
   defp sentinel_stop(pid) when is_pid(pid) do
-    Process.exit(pid, :normal)
+    Process.exit(pid, :kill)
   end
 
   defp sentinel_stop(_), do: nil
 
   defp sentinel_run(ref, name, pid, mon) do
     receive do
-      {:DOWN, ^mon, _, ^pid, reason} ->
+      {:DOWN, ^mon, _, ^pid, _reason} ->
         dec(ref, name)
     end
   end
