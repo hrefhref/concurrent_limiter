@@ -97,6 +97,7 @@ defmodule ConcurrentLimiter do
     max = max_running + max_waiting
     counter = inc(ref, name)
     max_retries = Keyword.get(opts, :max_retries) || max_retries
+    sentinel = Keyword.get(opts, :sentinel) || true
     :telemetry.execute([:concurrent_limiter, :limit], %{counter: counter}, %{limiter: name})
 
     cond do
@@ -105,20 +106,13 @@ defmodule ConcurrentLimiter do
           limiter: name
         })
 
-        Process.flag(:trap_exit, true)
+        mon = sentinel_start(sentinel, ref, name)
 
         try do
           fun.()
         after
           dec(ref, name)
-          Process.flag(:trap_exit, false)
-
-          receive do
-            {:EXIT, _, reason} ->
-              Process.exit(self(), reason)
-          after
-            0 -> :noop
-          end
+          sentinel_stop(mon)
         end
 
       counter > max ->
@@ -127,13 +121,24 @@ defmodule ConcurrentLimiter do
           scope: "max"
         })
 
-      max_waiting == 0 ->
-        :telemetry.execute([:concurrent_limiter, :overload], %{counter: counter}, %{limiter: name, scope: "max"})
         dec(ref, name)
         {:error, :overload}
 
-       counter > max ->
-        :telemetry.execute([:concurrent_limiter, :overload], %{counter: counter}, %{limiter: name, scope: "max"})
+      max_waiting == 0 ->
+        :telemetry.execute([:concurrent_limiter, :overload], %{counter: counter}, %{
+          limiter: name,
+          scope: "max"
+        })
+
+        dec(ref, name)
+        {:error, :overload}
+
+      counter > max ->
+        :telemetry.execute([:concurrent_limiter, :overload], %{counter: counter}, %{
+          limiter: name,
+          scope: "max"
+        })
+
         dec(ref, name)
         {:error, :overload}
 
@@ -152,15 +157,13 @@ defmodule ConcurrentLimiter do
           retries: retries + 1
         })
 
-        wait(ref, name, fun, wait, opts, retries + 1)
+        mon = sentinel_start(sentinel, ref, name)
+        wait = Keyword.get(opts, :timeout) || wait
+        Process.sleep(wait)
+        dec(ref, name)
+        sentinel_stop(mon)
+        do_limit(name, fun, opts, retries + 1)
     end
-  end
-
-  defp wait(ref, name, fun, wait, opts, retries) do
-    wait = Keyword.get(opts, :timeout) || wait
-    Process.sleep(wait)
-    dec(ref, name)
-    do_limit(name, fun, opts, retries)
   end
 
   defp inc(ref, _) do
@@ -178,5 +181,28 @@ defmodule ConcurrentLimiter do
     true
   rescue
     _ -> false
+  end
+
+  defp sentinel_start(true, ref, name) do
+    self = self()
+
+    spawn(fn ->
+      sentinel_run(ref, name, self, Process.monitor(self))
+    end)
+  end
+
+  defp sentinel_start(_, _, _), do: nil
+
+  defp sentinel_stop(pid) when is_pid(pid) do
+    Process.exit(pid, :normal)
+  end
+
+  defp sentinel_stop(_), do: nil
+
+  defp sentinel_run(ref, name, pid, mon) do
+    receive do
+      {:DOWN, ^mon, _, ^pid, reason} ->
+        dec(ref, name)
+    end
   end
 end
